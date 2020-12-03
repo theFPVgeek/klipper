@@ -28,7 +28,7 @@ class RPiTemperature:
             self._sample_pi_temperature
         )
         try:
-            self.file_handle = open("/sys/class/thermal/thermal_zone0/temp", "r")
+            self.file_handle = open(PROC_TEMP_FILE, "r")
         except:
             raise config.error(
                 "Unable to open temperature file '%s'" % (PROC_TEMP_FILE)
