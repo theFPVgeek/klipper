@@ -8,6 +8,7 @@ import logging
 
 RPI_REPORT_TIME = 1.0
 KELVIN_TO_CELSIUS = -273.15
+PROC_TEMP_FILE = "/sys/class/thermal/thermal_zone0/temp"
 
 class RPiTemperature:
     def __init__(self, config):
@@ -26,21 +27,21 @@ class RPiTemperature:
         self.sample_timer = self.reactor.register_timer(
             self._sample_pi_temperature
         )
+        try:
+            self.file_handle = open("/sys/class/thermal/thermal_zone0/temp", "r")
+        except:
+            raise config.error(
+                "Unable to open temperature file '%s'" % (PROC_TEMP_FILE)
+            )
+
         self.printer.register_event_handler(
             "klippy:connect", self.handle_connect
         )
-        self.printer.register_event_handler(
-            "klippy:disconnect", self.handle_disconnect
-        )
+
 
     def handle_connect(self):
-        self.file_handle = open("/sys/class/thermal/thermal_zone0/temp", "r")
         self.reactor.update_timer(self.sample_timer, self.reactor.NOW)
 
-    def handle_disconnect(self):
-        self.reactor.update_timer(self.sample_timer, self.reactor.NEVER)
-        if self.file_handle:
-            self.file_handle = None
 
     def setup_minmax(self, min_temp, max_temp):
         pass
@@ -50,22 +51,19 @@ class RPiTemperature:
 
     def _sample_pi_temperature(self, eventtime):
         try:
-            if self.file_handle:
-                self.file_handle.seek(0)
-                self.temp = float(self.file_handle.read())/1000.0
+            self.file_handle.seek(0)
+            self.temp = float(self.file_handle.read())/1000.0
 
-                if self.temp < self.min_temp:
-                    self.printer.invoke_shutdown(
-                        "RPi temperature %0.1f below minimum"
-                        " temperature of %0.1f." % (self.temp, self.min_temp,)
-                    )
-                if self.temp > self.max_temp:
-                    self.printer.invoke_shutdown(
-                        "RPi temperature %0.1f above maximum"
-                        " temperature of %0.1f." % (self.temp, self.max_temp,)
-                    )
-            else:
-                raise
+            if self.temp < self.min_temp:
+                self.printer.invoke_shutdown(
+                    "RPi temperature %0.1f below minimum"
+                    " temperature of %0.1f." % (self.temp, self.min_temp,)
+                )
+            if self.temp > self.max_temp:
+                self.printer.invoke_shutdown(
+                    "RPi temperature %0.1f above maximum"
+                    " temperature of %0.1f." % (self.temp, self.max_temp,)
+                )
         except Exception:
             logging.exception("rpi_temperature: Error reading data")
             self.temp = 0.0
